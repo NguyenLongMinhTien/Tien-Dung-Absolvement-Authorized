@@ -11,12 +11,6 @@
   "engines": {
     "node": "20.x"
   },
-  "overrides": {
-    "debug": "4.3.6",
-    "express>debug": "4.3.6",
-    "finalhandler>debug": "4.3.6",
-    "send>debug": "4.3.6"
-  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.5",
