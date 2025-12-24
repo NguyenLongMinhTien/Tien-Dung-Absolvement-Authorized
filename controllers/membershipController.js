@@ -116,3 +116,29 @@ exports.setRole = async (req, res) => {
   await membership.save();
   res.json({ success: true, data: membership });
 };
+
+exports.getStats = async (req, res) => {
+  const { clubId } = req.query; // optional filter by club
+  const matchStage = clubId ? { $match: { club: require('mongoose').Types.ObjectId(clubId) } } : null;
+
+  const pipelineByStatus = [
+    ...(matchStage ? [matchStage] : []),
+    { $group: { _id: '$status', count: { $sum: 1 } } },
+    { $project: { status: '$_id', count: 1, _id: 0 } },
+    { $sort: { status: 1 } }
+  ];
+
+  const pipelineByRole = [
+    ...(matchStage ? [matchStage] : []),
+    { $group: { _id: '$role', count: { $sum: 1 } } },
+    { $project: { role: '$_id', count: 1, _id: 0 } },
+    { $sort: { role: 1 } }
+  ];
+
+  const [byStatus, byRole] = await Promise.all([
+    Membership.aggregate(pipelineByStatus),
+    Membership.aggregate(pipelineByRole)
+  ]);
+
+  res.json({ success: true, stats: { byStatus, byRole } });
+};

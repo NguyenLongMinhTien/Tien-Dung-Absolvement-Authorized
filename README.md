@@ -1,124 +1,79 @@
-# User Auth & Logging Service (Node.js + Express + MongoDB) — Demo
+# Club Management API (Node.js + Express + MongoDB)
 
-Module "Người dùng & Xác thực" cho dự án backup/restore: đăng ký, đăng nhập, cập nhật hồ sơ, JWT auth, RBAC (user/admin), system logs và restore request logging.
+Backend quản lý câu lạc bộ học sinh: Auth, Users, Clubs, Memberships, Wishlist, Notifications, RBAC, Validation, Rate Limiting, và Analytics.
 
 ## Tính năng
-- Register (bcrypt)
-- Login (JWT)
-- Middleware bảo vệ route: protect (JWT) và authorize (role)
-- User endpoints: lấy và cập nhật hồ sơ
-- Admin endpoint: liệt kê người dùng
-- Restore request: tạo entry trong `restore_logs` (trạng thái `pending`)
-- System logging: mọi thao tác quan trọng được ghi vào `system_logs`
+- Auth: Register (bcrypt), Login (JWT), refresh hồ sơ cơ bản
+- Users: me (GET/PUT), admin CRUD users, analytics users theo role (`GET /api/v1/users/stats`)
+- Clubs: tạo/sửa/xóa/xem (admin)
+- Memberships: apply/approve/reject/leave/setRole, analytics memberships theo status/role (`GET /api/v1/memberships/stats`)
+- Wishlist: thêm/xóa/xem (tham chiếu User -> Wishlist)
+- Notifications: tạo/xem (tham chiếu User -> Notification)
+- RBAC: roles `student`, `admin` với middleware `protect`, `authorize`
+- Validation: `express-validator` cho các API quan trọng
+- Rate Limiting: toàn cục 100 requests/15 phút (`index.js`)
+- Versioning: tiền tố `/api/v1`
 
 ## Công nghệ
 - Node.js, Express
-- MongoDB, Mongoose
-- bcrypt, jsonwebtoken
-- dotenv
-- (Tùy chọn) morgan, helmet, rate-limit
+- MongoDB Atlas, Mongoose
+- bcryptjs, jsonwebtoken
+- express-rate-limit, express-validator, dotenv
 
-## Mô hình dữ liệu (Collections)
-- users
-  - _id: ObjectId
-  - email: string (unique)
-  - password: string (hashed)
-  - role: "user" | "admin"
-  - profile: { fullName, phone, address }
-  - lastLoginAt: Date
-  - createdAt: Date
-- system_logs
-  - _id
-  - user: ObjectId | null
-  - action: string (USER_REGISTER | USER_LOGIN | USER_UPDATE_PROFILE | REQUEST_RESTORE | ...)
-  - meta: Object
-  - ip: string
-  - createdAt: Date
-- restore_logs
-  - _id
-  - user: ObjectId (owner of data)
-  - requestedBy: ObjectId (who requested)
-  - status: pending | in_progress | completed | failed
-  - backupRef: string (tùy chọn)
-  - notes: string
-  - createdAt, completedAt
+## Mô hình dữ liệu
+- User (Embedding + Referencing)
+  - profile (nhúng): `{ grade, phone, address: { street, city, district } }`
+  - liên kết: Memberships, Wishlist, Notifications (ObjectId tham chiếu)
+- Club: `{ name, description, createdBy: ref(User) }`
+- Membership: `{ user: ref(User), club: ref(Club), role, status, joinedAt }`
+- Wishlist: `{ user: ref(User), items: [ObjectId hoặc thông tin] }`
+- Notification: `{ user: ref(User), title, message }`
 
-Quan hệ: `system_logs` và `restore_logs` tham chiếu `users` bằng ObjectId.
-
-## Cách chạy
-Yêu cầu: Node.js >= 18, MongoDB URI hợp lệ.
-
-1) Tạo file môi trường
-- Copy `.env.example` -> `.env` (hoặc tạo nhanh như dưới)
-
-```
-MONGO_URI=mongodb+srv://<user>:<pass>@<cluster>/<db>?retryWrites=true&w=majority
-JWT_SECRET=your-strong-secret
-PORT=3000
-```
-
-2) Cài đặt và chạy
-- npm install
-- npm run dev
-
-Ứng dụng khởi động tại http://localhost:3000 (hoặc PORT bạn đặt).
-
-## Middleware
-- protect: đọc header Authorization "Bearer <token>", verify JWT, nạp `req.user`. Trả 401 nếu không hợp lệ.
-- authorize(...roles): kiểm tra `req.user.role` có thuộc roles. Trả 403 nếu không có quyền.
-
-Ví dụ header:
-```
-Authorization: Bearer <jwt-token>
-```
-
-## Endpoints
+## Endpoints chính
 - Auth
   - POST /api/v1/auth/register
-    - body: { email, password, profile? }
   - POST /api/v1/auth/login
-    - body: { email, password }
-    - returns: { token, user }
-
 - Users
   - GET /api/v1/users/me
-    - headers: Authorization: Bearer <token>
-  - PATCH /api/v1/users/me
-    - body: { profile?, password?, email? }
-  - GET /api/v1/users
-    - admin only (Authorization: Bearer)
+  - PUT /api/v1/users/me
+  - GET /api/v1/users (admin)
+  - GET /api/v1/users/:id (admin)
+  - PUT /api/v1/users/:id (admin)
+  - DELETE /api/v1/users/:id (admin)
+  - GET /api/v1/users/stats (admin) — Aggregation
+- Clubs (admin)
+  - CRUD tại /api/v1/clubs
+- Memberships
+  - POST /api/v1/memberships/apply
+  - GET /api/v1/memberships/me
+  - DELETE /api/v1/memberships/:id
+  - GET /api/v1/memberships/club/:clubId (admin hoặc leader)
+  - PATCH /api/v1/memberships/:id/approve (admin hoặc leader)
+  - PATCH /api/v1/memberships/:id/reject (admin hoặc leader)
+  - PATCH /api/v1/memberships/:id/role (admin hoặc leader)
+  - GET /api/v1/memberships/stats (admin) — Aggregation
+- Wishlist
+  - tại /api/v1/wishlist
+- Notifications
+  - tại /api/v1/notifications
 
-- Restore
-  - POST /api/v1/users/:id/request-restore
-    - headers: Authorization: Bearer
-    - body: { notes?, backupRef? }
-    - user có thể yêu cầu cho chính mình; admin có thể yêu cầu thay user khác.
+## Chạy dự án
+```
+MONGO_URI=...
+JWT_SECRET=...
+PORT=3000
+```
+- npm install
+- npm run dev
+- Truy cập http://localhost:3000
 
-## Dòng chảy Postman (tóm tắt)
-1) Register -> 2) Login -> lấy token
-3) GET /api/v1/users/me (kèm Authorization)
-4) PATCH /api/v1/users/me để cập nhật profile
-5) POST /api/v1/users/:id/request-restore (id = của mình; hoặc admin có thể dùng id khác)
-6) Admin dùng GET /api/v1/users để xem danh sách
+## Bảo mật và lưu ý
+- JWT qua header `Authorization: Bearer <token>`
+- Không commit `.env` (đã có `.gitignore`)
+- Rate limiting đã bật; cân nhắc tách limiter riêng cho login nếu cần
 
-## Logging
-- Mỗi sự kiện chính (đăng ký, đăng nhập, cập nhật hồ sơ, yêu cầu restore) sinh một bản ghi trong `system_logs`:
-  - action, user (ObjectId | null), meta (payload tóm tắt), ip, createdAt
-- Mỗi yêu cầu restore tạo một `restore_logs` với:
-  - user, requestedBy, status=pending, notes/backupRef, timestamps
-
-## Bảo mật & Triển khai
-- Không commit MONGO_URI / JWT_SECRET vào public repo.
-- Dùng HTTPS (TLS) khi triển khai.
-- Khuyến nghị bật rate-limiting, helmet, CORS, và log retention.
-- Xoá logs nhạy cảm định kỳ, phân quyền rõ ràng (RBAC).
-
-## Mở rộng
-- Thêm collection `backups` + cron snapshot -> lưu metadata.
-- Admin endpoint để review/approve/execute restore (kết nối module backup/restore).
-- Metrics: số restore, thời gian backup, tỉ lệ lỗi.
-- Thêm email/OTP, refresh token, và revoke token cho bảo mật cao hơn.
-
-## Ghi chú
-- Đây là demo theo dạng "Tiến Dũng Absolvement - Authorized".
-- Endpoint/Schema có thể khác đôi chút so với triển khai thực tế; chỉnh sửa theo nhu cầu dự án.
+## Demo Postman gợi ý
+1) Register -> Login -> lấy token
+2) CRUD Users (admin) và endpoints me
+3) Tạo Club (admin), apply membership (student), approve (leader/admin)
+4) Gọi analytics: `/api/v1/users/stats`, `/api/v1/memberships/stats`

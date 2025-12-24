@@ -2,7 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
 const membershipController = require('../controllers/membershipController');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 const { adminOrLeaderByClubParam, adminOrLeaderByMembershipId } = require('../middleware/clubAccess');
 
 // User
@@ -15,5 +15,8 @@ router.get('/club/:clubId', protect, adminOrLeaderByClubParam('clubId'), members
 router.patch('/:id/approve', protect, adminOrLeaderByMembershipId, membershipController.approve);
 router.patch('/:id/reject', protect, adminOrLeaderByMembershipId, membershipController.reject);
 router.patch('/:id/role', protect, adminOrLeaderByMembershipId, [body('role').isIn(['member', 'leader']).withMessage('Invalid role')], membershipController.setRole);
+
+// Admin analytics
+router.get('/stats', protect, authorize('admin'), membershipController.getStats);
 
 module.exports = router;

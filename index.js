@@ -1,12 +1,12 @@
 /* 
-TV1 - Thành phần đã hoàn thành trong Tien-Dung-Absolvement-Authorized:
+TV1 - Những nội dung đã thực hiện trong Tien-Dung-Absolvement-Authorized:
 - Authentication (authRoutes)
 - Users (userRoutes)
 - Wishlist (wishlistRoutes)
 - Notifications (notificationRoutes)
 - Clubs (clubRoutes)
 - Memberships (membershipRoutes)
-- Kèm rate-limiting và centralized error handler, cấu hình PORT từ .env
+- Bao gồm rate-limiting, centralized error handler và cấu hình PORT từ .env
 */
 
 const express = require('express');
@@ -23,6 +23,9 @@ app.use(express.json());
 // Rate limit: 100 requests per 15 minutes per IP
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
 app.use(limiter);
+
+// Health check for Render
+app.get('/health', (_req, res) => res.status(200).json({ ok: true }));
 
 app.get('/', (req, res) => {
   res.send('Club Management Backend is running');

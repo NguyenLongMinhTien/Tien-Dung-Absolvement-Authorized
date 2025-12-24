@@ -56,3 +56,13 @@ exports.deleteUserById = async (req, res) => {
   if (!user) return res.status(404).json({ message: 'User not found' });
   res.json({ message: 'User deleted' });
 };
+
+// Admin analytics: count users by role
+exports.getUserStats = async (_req, res) => {
+  const stats = await User.aggregate([
+    { $group: { _id: '$role', count: { $sum: 1 } } },
+    { $project: { role: '$_id', count: 1, _id: 0 } },
+    { $sort: { role: 1 } }
+  ]);
+  res.json({ stats });
+};
